@@ -35,7 +35,7 @@ config = {
     'train':
         {
             'epochs': 100,
-            # *Luca: changed batch_size_train to 8
+            # *Luca: changed batch_size_train to 16
             'batch_size': 16,
             'batch_size_test': 16,
             'lr': 1.0e-3
