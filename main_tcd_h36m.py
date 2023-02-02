@@ -26,7 +26,7 @@ parser.add_argument('--data', type=str, default='one', choices=['one', 'all'],
 parser.add_argument('--output_dir', type=str, default='default')
 parser.add_argument('--model_s', type=str, default='default')
 parser.add_argument('--model_l', type=str, default='default')
-parser.add_argument('--data_dir', type=str, default='/datasets/')
+parser.add_argument('--data_dir', type=str, default='/media/hdd/datasets_common/')
 
 args = parser.parse_args()
 print(args)
@@ -35,8 +35,9 @@ config = {
     'train':
         {
             'epochs': 100,
-            'batch_size': 32,
-            'batch_size_test': 32,
+            # *Luca: changed batch_size_train to 8
+            'batch_size': 16,
+            'batch_size_test': 16,
             'lr': 1.0e-3
         },
     'diffusion':

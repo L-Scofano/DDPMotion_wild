@@ -19,7 +19,8 @@ class H36M(Dataset):
         :param split: 0 train, 1 validation, 2 testing
         :param sample_rate:
         """
-        self.path_to_data = os.path.join(data_dir, 'h3.6m/dataset')
+        # !Luca: changed path to data
+        self.path_to_data = os.path.join(data_dir, 'h36m')
         self.split = split
         self.in_n = input_n
         self.out_n = output_n
