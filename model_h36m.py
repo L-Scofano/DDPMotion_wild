@@ -6,12 +6,12 @@ class Model_H36M(ModelBase):
         super(Model_H36M, self).__init__(target_dim, config, device)
 
     def process_data(self, batch):
-        pose = batch["pose"].to(self.device).float()
-        tp = batch["timepoints"].to(self.device).float()
-        mask = batch["mask"].to(self.device).float()
+        pose = batch["pose"].to(self.device).float() #! (Bs, L, DIMs) (L=pose timesteps)
+        tp = batch["timepoints"].to(self.device).float() #! (Bs, L) (L=pose timesteps)
+        mask = batch["mask"].to(self.device).float() #! (Bs, L, DIMs) (L=pose timesteps)
 
-        pose = pose.permute(0, 2, 1)
-        mask = mask.permute(0, 2, 1)
+        pose = pose.permute(0, 2, 1) #! (Bs, DIMs, L) (L=pose timesteps)
+        mask = mask.permute(0, 2, 1) #! (Bs, DIMs, L) (L=pose timesteps)
 
         return (
             pose,

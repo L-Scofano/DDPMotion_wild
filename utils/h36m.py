@@ -144,15 +144,15 @@ class H36M(Dataset):
         pose = self.p3d[key][fs]
         observed = pose.copy() / 1000.0
 
-        mask = np.zeros((pose.shape[0], pose.shape[1]))
-        mask[0:self.in_n, :] = 1
-        mask[self.in_n:self.in_n + self.out_n, :] = 0
+        mask = np.zeros((pose.shape[0], pose.shape[1])) #! Create the mask
+        mask[0:self.in_n, :] = 1 #! history part should be visible
+        mask[self.in_n:self.in_n + self.out_n, :] = 0 #! future has to be masked and forcasted
 
         data = {
-            "pose": observed[:, self.dim_used],
-            "pose_32": pose,
-            "mask": mask.copy()[:, self.dim_used],
-            "timepoints": np.arange(self.in_n + self.out_n)
+            "pose": observed[:, self.dim_used], #! Pose to use
+            "pose_32": pose, #! Pose with irrelevant joints (complete)
+            "mask": mask.copy()[:, self.dim_used], #! Temporal Mask to avoid leaking the future
+            "timepoints": np.arange(self.in_n + self.out_n) #! ? [Probably the ranking of timeframes in a pose]
         }
 
         return data

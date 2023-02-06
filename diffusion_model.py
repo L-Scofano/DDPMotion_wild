@@ -47,19 +47,22 @@ class DiffusionEmbedding(nn.Module):
 
 
 class diff_CSDI(nn.Module):
+    '''
+    CSDI is the work the authors exploit defining their model
+    '''
     def __init__(self, config, inputdim=2):
         super().__init__()
-        self.channels = config["channels"]
+        self.channels = config["channels"] #! (64)
 
         self.diffusion_embedding = DiffusionEmbedding(
             num_steps=config["num_steps"],
             embedding_dim=config["diffusion_embedding_dim"],
         )
 
-        self.input_projection = Conv1d_with_init(inputdim, self.channels, 1)
-        self.output_projection1 = Conv1d_with_init(self.channels, self.channels, 1)
-        self.output_projection2 = Conv1d_with_init(self.channels, 1, 1)
-        nn.init.zeros_(self.output_projection2.weight)
+        self.input_projection = Conv1d_with_init(inputdim, self.channels, 1) #! 2->64
+        self.output_projection1 = Conv1d_with_init(self.channels, self.channels, 1) #! 64->64
+        self.output_projection2 = Conv1d_with_init(self.channels, 1, 1) #! 64->1
+        nn.init.zeros_(self.output_projection2.weight) #! weights initialized with zeros for `self.output_projection2`
 
         self.residual_layers = nn.ModuleList(
             [
@@ -100,13 +103,13 @@ class diff_CSDI(nn.Module):
 class ResidualBlock(nn.Module):
     def __init__(self, side_dim, channels, diffusion_embedding_dim, nheads):
         super().__init__()
-        self.diffusion_projection = nn.Linear(diffusion_embedding_dim, channels)
-        self.cond_projection = Conv1d_with_init(side_dim, 2 * channels, 1)
-        self.mid_projection = Conv1d_with_init(channels, 2 * channels, 1)
-        self.output_projection = Conv1d_with_init(channels, 2 * channels, 1)
+        self.diffusion_projection = nn.Linear(diffusion_embedding_dim, channels) #! 128->64
+        self.cond_projection = Conv1d_with_init(side_dim, 2 * channels, 1) #! 145->128
+        self.mid_projection = Conv1d_with_init(channels, 2 * channels, 1) #! 64->128
+        self.output_projection = Conv1d_with_init(channels, 2 * channels, 1) #! 64->128
 
-        self.time_layer = get_torch_trans(heads=nheads, layers=1, channels=channels)
-        self.feature_layer = get_torch_trans(heads=nheads, layers=1, channels=channels)
+        self.time_layer = get_torch_trans(heads=nheads, layers=1, channels=channels) #! Single transformer encoder layer
+        self.feature_layer = get_torch_trans(heads=nheads, layers=1, channels=channels) #! Single transformer encoder layer
 
     def forward_time(self, y, base_shape):
         B, channel, K, L = base_shape

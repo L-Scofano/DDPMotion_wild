@@ -10,23 +10,23 @@ class ModelBase(nn.Module):
     def __init__(self, target_dim, config, device):
         super().__init__()
         self.device = device
-        self.target_dim = target_dim
+        self.target_dim = target_dim #! J * C
 
-        self.emb_time_dim = config["model"]["timeemb"]
-        self.emb_feature_dim = config["model"]["featureemb"]
-        self.is_unconditional = config["model"]["is_unconditional"]
+        self.emb_time_dim = config["model"]["timeemb"] #! used for positional embedding (128)
+        self.emb_feature_dim = config["model"]["featureemb"] #! (16)
+        self.is_unconditional = config["model"]["is_unconditional"] #! Whether the model doesn't take a condition in [0: false, 1:true] (0)
 
-        self.emb_total_dim = self.emb_time_dim + self.emb_feature_dim
+        self.emb_total_dim = self.emb_time_dim + self.emb_feature_dim #! (144)
         if not self.is_unconditional:
-            self.emb_total_dim += 1  # for conditional mask
-        self.embed_layer = nn.Embedding(
+            self.emb_total_dim += 1  # for conditional mask #! ? (145)
+        self.embed_layer = nn.Embedding( #! 66->16 #! Used to get a Features_embedding, similar to the Positional Embedding
             num_embeddings=self.target_dim, embedding_dim=self.emb_feature_dim
         )
 
         config_diff = config["diffusion"]
-        config_diff["side_dim"] = self.emb_total_dim
+        config_diff["side_dim"] = self.emb_total_dim #! (145)
 
-        input_dim = 1 if self.is_unconditional else 2
+        input_dim = 1 if self.is_unconditional else 2 #! ?
         self.diffmodel = diff_CSDI(config_diff, input_dim)
 
         # parameters for diffusion models
@@ -47,7 +47,7 @@ class ModelBase(nn.Module):
 
         self.alpha_hat = 1 - self.beta
         self.alpha = np.cumprod(self.alpha_hat)
-        self.alpha_torch = torch.tensor(self.alpha).float().to(self.device).unsqueeze(1).unsqueeze(1)
+        self.alpha_torch = torch.tensor(self.alpha).float().to(self.device).unsqueeze(1).unsqueeze(1) #! [50, 1, 1]
 
     def betas_for_alpha_bar(self, num_diffusion_timesteps, alpha_bar, max_beta=0.5):  # defualt = max_beta = 0.999
         # """
@@ -75,24 +75,24 @@ class ModelBase(nn.Module):
         )
         pe[:, :, 0::2] = torch.sin(position * div_term)
         pe[:, :, 1::2] = torch.cos(position * div_term)
-        return pe
+        return pe #! ([Bs, L, d_model])
 
     def get_side_info(self, observed_tp, cond_mask):
-        B, K, L = cond_mask.shape
+        B, K, L = cond_mask.shape #! 16, 66, 55
 
-        time_embed = self.time_embedding(observed_tp, self.emb_time_dim)  # (B,L,emb)
-        time_embed = time_embed.unsqueeze(2).expand(-1, -1, K, -1)
+        time_embed = self.time_embedding(observed_tp, self.emb_time_dim)  # (B,L,emb) #! emb=128
+        time_embed = time_embed.unsqueeze(2).expand(-1, -1, K, -1) #! (B,L,K,emb) repeating the tensor K times
         feature_embed = self.embed_layer(
-            torch.arange(self.target_dim).to(self.device)
-        )  # (K,emb)
-        feature_embed = feature_embed.unsqueeze(0).unsqueeze(0).expand(B, L, -1, -1)
+            torch.arange(self.target_dim).to(self.device) #! as in l84, the input is the `torch.arange` of the dimension K (joints*channels), it is a feat_embedding
+        )  # (K,emb) #! emb = 16 (!!) not same emb as before
+        feature_embed = feature_embed.unsqueeze(0).unsqueeze(0).expand(B, L, -1, -1) #! (B, L, K, emb)
 
-        side_info = torch.cat([time_embed, feature_embed], dim=-1)  # (B,L,K,*)
-        side_info = side_info.permute(0, 3, 2, 1)  # (B,*,K,L)
+        side_info = torch.cat([time_embed, feature_embed], dim=-1)  # (B,L,K,*) #! *= Pos_emb_dim + Feat_emb_dim = 128 + 16
+        side_info = side_info.permute(0, 3, 2, 1)  # (B,*,K,L) #! *= Pos_emb_dim + Feat_emb_dim = 128 + 16
 
         if not self.is_unconditional:
             side_mask = cond_mask.unsqueeze(1)  # (B,1,K,L)
-            side_info = torch.cat([side_info, side_mask], dim=1)
+            side_info = torch.cat([side_info, side_mask], dim=1) #! (B, 128+16+1(side_mask just unsqueezed)=145, K, L)
 
         return side_info
 
@@ -114,10 +114,10 @@ class ModelBase(nn.Module):
         if is_train != 1:  # for validation
             t = (torch.ones(B) * set_t).long().to(self.device)
         else:
-            t = torch.randint(0, self.num_steps, [B]).to(self.device)
+            t = torch.randint(0, self.num_steps, [B]).to(self.device) #! (B)
         current_alpha = self.alpha_torch[t].to(self.device)  # (B,1,1)
-        noise = torch.randn_like(observed_data).to(self.device)
-        noisy_data = (current_alpha ** 0.5) * observed_data + (1.0 - current_alpha) ** 0.5 * noise
+        noise = torch.randn_like(observed_data).to(self.device) #! (Bs, K, L)
+        noisy_data = (current_alpha ** 0.5) * observed_data + (1.0 - current_alpha) ** 0.5 * noise #TODO sono arrivato qui! !Critical point!
 
         total_input = self.set_input_to_diffmodel(noisy_data, observed_data, cond_mask)
 
@@ -133,9 +133,9 @@ class ModelBase(nn.Module):
         if self.is_unconditional:
             total_input = noisy_data.unsqueeze(1)  # (B,1,K,L)
         else:
-            cond_obs = (cond_mask * observed_data).unsqueeze(1)
-            noisy_target = ((1 - cond_mask) * noisy_data).unsqueeze(1)
-            total_input = torch.cat([cond_obs, noisy_target], dim=1)  # (B,2,K,L)
+            cond_obs = (cond_mask * observed_data).unsqueeze(1) #! observation conditioned to the time masking (only past is visible) (B, 1, K, L)
+            noisy_target = ((1 - cond_mask) * noisy_data).unsqueeze(1) #! future represented with noisy data (B, 1, K, L)
+            total_input = torch.cat([cond_obs, noisy_target], dim=1)  # (B,2,K,L) #! this is where the '2' comes from
 
         return total_input
 
