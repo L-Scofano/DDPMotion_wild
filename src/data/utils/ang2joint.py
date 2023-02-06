@@ -1,9 +1,36 @@
 import torch
 
 
-def ang2joint(p3d0, pose,
-              parent={0: -1, 1: 0, 2: 0, 3: 0, 4: 1, 5: 2, 6: 3, 7: 4, 8: 5, 9: 6, 10: 7, 11: 8, 12: 9, 13: 9, 14: 9,
-                      15: 12, 16: 13, 17: 14, 18: 16, 19: 17, 20: 18, 21: 19, 22: 20, 23: 21}):
+def ang2joint(
+    p3d0,
+    pose,
+    parent={
+        0: -1,
+        1: 0,
+        2: 0,
+        3: 0,
+        4: 1,
+        5: 2,
+        6: 3,
+        7: 4,
+        8: 5,
+        9: 6,
+        10: 7,
+        11: 8,
+        12: 9,
+        13: 9,
+        14: 9,
+        15: 12,
+        16: 13,
+        17: 14,
+        18: 16,
+        19: 17,
+        20: 18,
+        21: 19,
+        22: 20,
+        23: 21,
+    },
+):
     """
     :param p3d0:[batch_size, joint_num, 3]
     :param pose:[batch_size, joint_num, 3]
@@ -27,10 +54,14 @@ def ang2joint(p3d0, pose,
     # J = torch.matmul(self.J_regressor, v_shaped)
     # face_J = v_shaped[:, [333, 2801, 6261], :]
     J = p3d0
-    R_cube_big = rodrigues(pose.contiguous().view(-1, 1, 3)).reshape(batch_num, -1, 3, 3)
+    R_cube_big = rodrigues(pose.contiguous().view(-1, 1, 3)).reshape(
+        batch_num, -1, 3, 3
+    )
     results = []
     results.append(
-        with_zeros(torch.cat((R_cube_big[:, 0], torch.reshape(J[:, 0, :], (-1, 3, 1))), dim=2))
+        with_zeros(
+            torch.cat((R_cube_big[:, 0], torch.reshape(J[:, 0, :], (-1, 3, 1))), dim=2)
+        )
     )
     # for i in range(1, kintree_table.shape[1]):
     for i in range(1, jnum):
@@ -39,10 +70,13 @@ def ang2joint(p3d0, pose,
                 results[parent[i]],
                 with_zeros(
                     torch.cat(
-                        (R_cube_big[:, i], torch.reshape(J[:, i, :] - J[:, parent[i], :], (-1, 3, 1))),
-                        dim=2
+                        (
+                            R_cube_big[:, i],
+                            torch.reshape(J[:, i, :] - J[:, parent[i], :], (-1, 3, 1)),
+                        ),
+                        dim=2,
                     )
-                )
+                ),
             )
         )
 
@@ -70,11 +104,24 @@ def rodrigues(r):
     cos = torch.cos(theta)
     z_stick = torch.zeros(theta_dim, dtype=torch.float).to(r.device)
     m = torch.stack(
-        (z_stick, -r_hat[:, 0, 2], r_hat[:, 0, 1], r_hat[:, 0, 2], z_stick,
-         -r_hat[:, 0, 0], -r_hat[:, 0, 1], r_hat[:, 0, 0], z_stick), dim=1)
+        (
+            z_stick,
+            -r_hat[:, 0, 2],
+            r_hat[:, 0, 1],
+            r_hat[:, 0, 2],
+            z_stick,
+            -r_hat[:, 0, 0],
+            -r_hat[:, 0, 1],
+            r_hat[:, 0, 0],
+            z_stick,
+        ),
+        dim=1,
+    )
     m = torch.reshape(m, (-1, 3, 3))
-    i_cube = (torch.eye(3, dtype=torch.float).unsqueeze(dim=0) \
-              + torch.zeros((theta_dim, 3, 3), dtype=torch.float)).to(r.device)
+    i_cube = (
+        torch.eye(3, dtype=torch.float).unsqueeze(dim=0)
+        + torch.zeros((theta_dim, 3, 3), dtype=torch.float)
+    ).to(r.device)
     A = r_hat.permute(0, 2, 1)
     dot = torch.matmul(A, r_hat)
     R = cos * i_cube + (1 - cos) * dot + torch.sin(theta) * m
@@ -91,9 +138,11 @@ def with_zeros(x):
     ------
     Tensor after appending of shape [4,4]
     """
-    ones = torch.tensor(
-        [[[0.0, 0.0, 0.0, 1.0]]], dtype=torch.float
-    ).expand(x.shape[0], -1, -1).to(x.device)
+    ones = (
+        torch.tensor([[[0.0, 0.0, 0.0, 1.0]]], dtype=torch.float)
+        .expand(x.shape[0], -1, -1)
+        .to(x.device)
+    )
     ret = torch.cat((x, ones), dim=1)
     return ret
 
@@ -108,7 +157,8 @@ def pack(x):
     ------
     A tensor of shape [batch_size, 4, 4] after appending.
     """
-    zeros43 = torch.zeros(
-        (x.shape[0], x.shape[1], 4, 3), dtype=torch.float).to(x.device)
+    zeros43 = torch.zeros((x.shape[0], x.shape[1], 4, 3), dtype=torch.float).to(
+        x.device
+    )
     ret = torch.cat((zeros43, x), dim=3)
     return ret

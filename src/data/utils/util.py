@@ -1,17 +1,34 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import numpy as np
-import torch
 import os
-from utils import forward_kinematics
 
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
+import numpy as np
 
-subjects = np.array([[1, 6, 7, 8, 9], [11], [5]])
-actions = ["walking", "eating", "smoking", "discussion", "directions",
-           "greeting", "phoning", "posing", "purchases", "sitting",
-           "sittingdown", "takingphoto", "waiting", "walkingdog",
-           "walkingtogether"]
+import torch
+
+from src.data.utils import forward_kinematics
+
+device = "cuda" if torch.cuda.is_available() else "cpu"
+
+# ! Seems like subjects is never used.
+# subjects = np.array([[1, 6, 7, 8, 9], [11], [5]])
+actions = [
+    "walking",
+    "eating",
+    "smoking",
+    "discussion",
+    "directions",
+    "greeting",
+    "phoning",
+    "posing",
+    "purchases",
+    "sitting",
+    "sittingdown",
+    "takingphoto",
+    "waiting",
+    "walkingdog",
+    "walkingtogether",
+]
 
 
 def rotmat2euler(R):
@@ -28,21 +45,21 @@ def rotmat2euler(R):
     if R[0, 2] == 1 or R[0, 2] == -1:
         # special case
         E3 = 0  # set arbitrarily
-        dlta = np.arctan2(R[0, 1], R[0, 2]);
+        dlta = np.arctan2(R[0, 1], R[0, 2])
 
         if R[0, 2] == -1:
-            E2 = np.pi / 2;
-            E1 = E3 + dlta;
+            E2 = np.pi / 2
+            E1 = E3 + dlta
         else:
-            E2 = -np.pi / 2;
-            E1 = -E3 + dlta;
+            E2 = -np.pi / 2
+            E1 = -E3 + dlta
 
     else:
         E2 = -np.arcsin(R[0, 2])
         E1 = np.arctan2(R[1, 2] / np.cos(E2), R[2, 2] / np.cos(E2))
         E3 = np.arctan2(R[0, 1] / np.cos(E2), R[0, 0] / np.cos(E2))
 
-    eul = np.array([E1, E2, E3]);
+    eul = np.array([E1, E2, E3])
     return eul
 
 
@@ -57,18 +74,18 @@ def rotmat2quat(R):
     Returns
       q: 1x4 quaternion
     """
-    rotdiff = R - R.T;
+    rotdiff = R - R.T
 
     r = np.zeros(3)
     r[0] = -rotdiff[1, 2]
     r[1] = rotdiff[0, 2]
     r[2] = -rotdiff[0, 1]
-    sintheta = np.linalg.norm(r) / 2;
-    r0 = np.divide(r, np.linalg.norm(r) + np.finfo(np.float32).eps);
+    sintheta = np.linalg.norm(r) / 2
+    r0 = np.divide(r, np.linalg.norm(r) + np.finfo(np.float32).eps)
 
-    costheta = (np.trace(R) - 1) / 2;
+    costheta = (np.trace(R) - 1) / 2
 
-    theta = np.arctan2(sintheta, costheta);
+    theta = np.arctan2(sintheta, costheta)
 
     q = np.zeros(4)
     q[0] = np.cos(theta / 2)
@@ -77,7 +94,7 @@ def rotmat2quat(R):
 
 
 def rotmat2expmap(R):
-    return quat2expmap(rotmat2quat(R));
+    return quat2expmap(rotmat2quat(R))
 
 
 def expmap2rotmat(r):
@@ -96,7 +113,7 @@ def expmap2rotmat(r):
     r0 = np.divide(r, theta + np.finfo(np.float32).eps)
     r0x = np.array([0, -r0[2], r0[1], 0, 0, -r0[0], 0, 0, 0]).reshape(3, 3)
     r0x = r0x - r0x.T
-    R = np.eye(3, 3) + np.sin(theta) * r0x + (1 - np.cos(theta)) * (r0x).dot(r0x);
+    R = np.eye(3, 3) + np.sin(theta) * r0x + (1 - np.cos(theta)) * (r0x).dot(r0x)
     return R
 
 
@@ -113,13 +130,13 @@ def quat2expmap(q):
     Raises
       ValueError if the l2 norm of the quaternion is not close to 1
     """
-    if (np.abs(np.linalg.norm(q) - 1) > 1e-3):
+    if np.abs(np.linalg.norm(q) - 1) > 1e-3:
         raise (ValueError, "quat2expmap: input quaternion is not norm 1")
 
     sinhalftheta = np.linalg.norm(q[1:])
     coshalftheta = q[0]
 
-    r0 = np.divide(q[1:], (np.linalg.norm(q[1:]) + np.finfo(np.float32).eps));
+    r0 = np.divide(q[1:], (np.linalg.norm(q[1:]) + np.finfo(np.float32).eps))
     theta = 2 * np.arctan2(sinhalftheta, coshalftheta)
     theta = np.mod(theta + 2 * np.pi, 2 * np.pi)
 
@@ -131,7 +148,9 @@ def quat2expmap(q):
     return r
 
 
-def unNormalizeData(normalizedData, data_mean, data_std, dimensions_to_ignore, actions, one_hot):
+def unNormalizeData(
+    normalizedData, data_mean, data_std, dimensions_to_ignore, actions, one_hot
+):
     """Borrowed from SRNN code. Reads a csv file and returns a float32 matrix.
     https://github.com/asheshjain399/RNNexp/blob/srnn/structural_rnn/CRFProblems/H3.6m/generateMotionData.py#L12
 
@@ -157,7 +176,7 @@ def unNormalizeData(normalizedData, data_mean, data_std, dimensions_to_ignore, a
     dimensions_to_use = np.array(dimensions_to_use)
 
     if one_hot:
-        origData[:, dimensions_to_use] = normalizedData[:, :-len(actions)]
+        origData[:, dimensions_to_use] = normalizedData[:, : -len(actions)]
     else:
         origData[:, dimensions_to_use] = normalizedData
 
@@ -195,7 +214,10 @@ def revert_output_format(poses, data_mean, data_std, dim_to_ignore, actions, one
     poses_out_list = []
     for i in range(poses_out.shape[0]):
         poses_out_list.append(
-            unNormalizeData(poses_out[i, :, :], data_mean, data_std, dim_to_ignore, actions, one_hot))
+            unNormalizeData(
+                poses_out[i, :, :], data_mean, data_std, dim_to_ignore, actions, one_hot
+            )
+        )
 
     return poses_out_list
 
@@ -213,7 +235,7 @@ def readCSVasFloat(filename):
     returnArray = []
     lines = open(filename).readlines()
     for line in lines:
-        line = line.strip().split(',')
+        line = line.strip().split(",")
         if len(line) > 0:
             returnArray.append(np.array([np.float32(x) for x in line]))
 
@@ -256,7 +278,7 @@ def normalize_data(data, data_mean, data_std, dim_to_use, actions, one_hot):
 
 
 def normalization_stats(completeData):
-    """"
+    """ "
     Also borrowed for SRNN code. Computes mean, stdev and dimensions to ignore.
     https://github.com/asheshjain399/RNNexp/blob/srnn/structural_rnn/CRFProblems/H3.6m/processdata.py#L33
 
@@ -294,10 +316,23 @@ def define_actions(action):
       ValueError if the action is not included in H3.6M
     """
 
-    actions = ["walking", "eating", "smoking", "discussion", "directions",
-               "greeting", "phoning", "posing", "purchases", "sitting",
-               "sittingdown", "takingphoto", "waiting", "walkingdog",
-               "walkingtogether"]
+    actions = [
+        "walking",
+        "eating",
+        "smoking",
+        "discussion",
+        "directions",
+        "greeting",
+        "phoning",
+        "posing",
+        "purchases",
+        "sitting",
+        "sittingdown",
+        "takingphoto",
+        "waiting",
+        "walkingdog",
+        "walkingtogether",
+    ]
     if action in actions:
         return [action]
 
@@ -325,8 +360,16 @@ def define_actions_cmu(action):
       ValueError if the action is not included in H3.6M
     """
 
-    actions = ["basketball", "basketball_signal", "directing_traffic", "jumping", "running", "soccer", "walking",
-               "washwindow"]
+    actions = [
+        "basketball",
+        "basketball_signal",
+        "directing_traffic",
+        "jumping",
+        "running",
+        "soccer",
+        "walking",
+        "washwindow",
+    ]
     if action in actions:
         return [action]
 
@@ -336,19 +379,23 @@ def define_actions_cmu(action):
     raise (ValueError, "Unrecognized action: %d" % action)
 
 
-def load_data_cmu(path_to_dataset, actions, input_n, output_n, data_std=0, data_mean=0, is_test=False):
+def load_data_cmu(
+    path_to_dataset, actions, input_n, output_n, data_std=0, data_mean=0, is_test=False
+):
     seq_len = input_n + output_n
     nactions = len(actions)
     sampled_seq = []
     complete_seq = []
     for action_idx in np.arange(nactions):
         action = actions[action_idx]
-        path = '{}/{}'.format(path_to_dataset, action)
+        path = "{}/{}".format(path_to_dataset, action)
         count = 0
         for _ in os.listdir(path):
             count = count + 1
         for examp_index in np.arange(count):
-            filename = '{}/{}/{}_{}.txt'.format(path_to_dataset, action, action, examp_index + 1)
+            filename = "{}/{}/{}_{}.txt".format(
+                path_to_dataset, action, action, examp_index + 1
+            )
             action_sequence = readCSVasFloat(filename)
             n, d = action_sequence.shape
             even_list = range(0, n, 2)
@@ -377,7 +424,12 @@ def load_data_cmu(path_to_dataset, actions, input_n, output_n, data_std=0, data_
                 for _ in range(batch_size):
                     idx = rng.randint(0, num_frames - total_frames)
                     seq_sel = the_sequence[
-                              idx + (source_seq_len - input_n):(idx + source_seq_len + output_n), :]
+                        idx
+                        + (source_seq_len - input_n) : (
+                            idx + source_seq_len + output_n
+                        ),
+                        :,
+                    ]
                     seq_sel = np.expand_dims(seq_sel, axis=0)
                     if len(sampled_seq) == 0:
                         sampled_seq = seq_sel
@@ -400,19 +452,23 @@ def load_data_cmu(path_to_dataset, actions, input_n, output_n, data_std=0, data_
     return sampled_seq, dimensions_to_ignore, dimensions_to_use, data_mean, data_std
 
 
-def load_data_cmu_3d(path_to_dataset, actions, input_n, output_n, data_std=0, data_mean=0, is_test=False):
+def load_data_cmu_3d(
+    path_to_dataset, actions, input_n, output_n, data_std=0, data_mean=0, is_test=False
+):
     seq_len = input_n + output_n
     nactions = len(actions)
     sampled_seq = []
     complete_seq = []
     for action_idx in np.arange(nactions):
         action = actions[action_idx]
-        path = '{}/{}'.format(path_to_dataset, action)
+        path = "{}/{}".format(path_to_dataset, action)
         count = 0
         for _ in os.listdir(path):
             count = count + 1
         for examp_index in np.arange(count):
-            filename = '{}/{}/{}_{}.txt'.format(path_to_dataset, action, action, examp_index + 1)
+            filename = "{}/{}/{}_{}.txt".format(
+                path_to_dataset, action, action, examp_index + 1
+            )
             action_sequence = readCSVasFloat(filename)
             n, d = action_sequence.shape
             exptmps = _move_to_device(torch.from_numpy(action_sequence).float())
@@ -447,7 +503,12 @@ def load_data_cmu_3d(path_to_dataset, actions, input_n, output_n, data_std=0, da
                 for _ in range(batch_size):
                     idx = rng.randint(0, num_frames - total_frames)
                     seq_sel = the_sequence[
-                              idx + (source_seq_len - input_n):(idx + source_seq_len + output_n), :]
+                        idx
+                        + (source_seq_len - input_n) : (
+                            idx + source_seq_len + output_n
+                        ),
+                        :,
+                    ]
                     seq_sel = np.expand_dims(seq_sel, axis=0)
                     if len(sampled_seq) == 0:
                         sampled_seq = seq_sel
@@ -461,8 +522,12 @@ def load_data_cmu_3d(path_to_dataset, actions, input_n, output_n, data_std=0, da
         data_mean = np.mean(complete_seq, axis=0)
 
     joint_to_ignore = np.array([0, 1, 2, 7, 8, 13, 16, 20, 29, 24, 27, 33, 36])
-    dimensions_to_ignore = np.concatenate((joint_to_ignore * 3, joint_to_ignore * 3 + 1, joint_to_ignore * 3 + 2))
-    dimensions_to_use = np.setdiff1d(np.arange(complete_seq.shape[1]), dimensions_to_ignore)
+    dimensions_to_ignore = np.concatenate(
+        (joint_to_ignore * 3, joint_to_ignore * 3 + 1, joint_to_ignore * 3 + 2)
+    )
+    dimensions_to_use = np.setdiff1d(
+        np.arange(complete_seq.shape[1]), dimensions_to_ignore
+    )
 
     data_std[dimensions_to_ignore] = 1.0
     data_mean[dimensions_to_ignore] = 0.0
@@ -505,10 +570,14 @@ def rotmat2euler_torch(R):
         R_remain = R[idx_remain, :, :]
         eul_remain = torch.zeros(len(idx_remain), 3).float().cuda()
         eul_remain[:, 1] = -torch.asin(R_remain[:, 0, 2])
-        eul_remain[:, 0] = torch.atan2(R_remain[:, 1, 2] / torch.cos(eul_remain[:, 1]),
-                                       R_remain[:, 2, 2] / torch.cos(eul_remain[:, 1]))
-        eul_remain[:, 2] = torch.atan2(R_remain[:, 0, 1] / torch.cos(eul_remain[:, 1]),
-                                       R_remain[:, 0, 0] / torch.cos(eul_remain[:, 1]))
+        eul_remain[:, 0] = torch.atan2(
+            R_remain[:, 1, 2] / torch.cos(eul_remain[:, 1]),
+            R_remain[:, 2, 2] / torch.cos(eul_remain[:, 1]),
+        )
+        eul_remain[:, 2] = torch.atan2(
+            R_remain[:, 0, 1] / torch.cos(eul_remain[:, 1]),
+            R_remain[:, 0, 0] / torch.cos(eul_remain[:, 1]),
+        )
         eul[idx_remain, :] = eul_remain
 
     return eul
@@ -573,9 +642,14 @@ def expmap2rotmat_torch(r):
     r1 = r1.view(-1, 3, 3)
     r1 = r1 - r1.transpose(1, 2)
     n = r1.data.shape[0]
-    R = _move_to_device(torch.eye(3, 3).repeat(n, 1, 1).float()) + torch.mul(
-        torch.sin(theta).unsqueeze(1).repeat(1, 9).view(-1, 3, 3), r1) + torch.mul(
-        (1 - torch.cos(theta).unsqueeze(1).repeat(1, 9).view(-1, 3, 3)), torch.matmul(r1, r1))
+    R = (
+        _move_to_device(torch.eye(3, 3).repeat(n, 1, 1).float())
+        + torch.mul(torch.sin(theta).unsqueeze(1).repeat(1, 9).view(-1, 3, 3), r1)
+        + torch.mul(
+            (1 - torch.cos(theta).unsqueeze(1).repeat(1, 9).view(-1, 3, 3)),
+            torch.matmul(r1, r1),
+        )
+    )
     return R
 
 
@@ -669,13 +743,13 @@ def find_indices_srnn(frame_num1, frame_num2, seq_len, input_n=10):
 
 
 def _move_to_device(obj):
-    if device == 'cuda':
+    if device == "cuda":
         return obj.cuda()
     return obj
 
 
 def normalization(data, parameters=None):
-    '''Normalize data in [0, 1] range.
+    """Normalize data in [0, 1] range.
 
     Args:
       - data: original data
@@ -683,14 +757,13 @@ def normalization(data, parameters=None):
     Returns:
       - norm_data: normalized data
       - norm_parameters: min_val, max_val for each feature for renormalization
-    '''
+    """
 
     # Parameters
     _, dim = data.shape
     norm_data = data.copy()
 
     if parameters is None:
-
         # MixMax normalization
         mean = np.zeros(dim)
         var = np.zeros(dim)
@@ -703,12 +776,11 @@ def normalization(data, parameters=None):
             norm_data[:, i] = norm_data[:, i] / (var[i] + 1e-6)
 
             # Return norm_parameters for renormalization
-        norm_parameters = {'mean': mean,
-                           'std': var}
+        norm_parameters = {"mean": mean, "std": var}
 
     else:
-        min_val = parameters['mean']
-        max_val = parameters['std']
+        min_val = parameters["mean"]
+        max_val = parameters["std"]
 
         # For each dimension
         for i in range(dim):
@@ -721,7 +793,7 @@ def normalization(data, parameters=None):
 
 
 def renormalization(norm_data, norm_parameters):
-    '''Renormalize data from [0, 1] range to the original range.
+    """Renormalize data from [0, 1] range to the original range.
 
     Args:
       - norm_data: normalized data
@@ -729,10 +801,10 @@ def renormalization(norm_data, norm_parameters):
 
     Returns:
       - renorm_data: renormalized original data
-    '''
+    """
 
-    mean = np.squeeze(norm_parameters['mean'].cpu().numpy())
-    std = np.squeeze(norm_parameters['std'].cpu().numpy())
+    mean = np.squeeze(norm_parameters["mean"].cpu().numpy())
+    std = np.squeeze(norm_parameters["std"].cpu().numpy())
 
     _, dim = norm_data.shape
     renorm_data = norm_data.copy()

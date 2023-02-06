@@ -8,8 +8,16 @@ from os import walk
 
 
 class AMASS(Dataset):
-
-    def __init__(self, data_dir, input_n, output_n, skip_rate, split=0, miss_rate=0.2, all_data=False):
+    def __init__(
+        self,
+        data_dir,
+        input_n,
+        output_n,
+        skip_rate,
+        split=0,
+        miss_rate=0.2,
+        all_data=False,
+    ):
         """
         :param path_to_data:
         :param actions:
@@ -19,7 +27,7 @@ class AMASS(Dataset):
         :param split: 0 train, 1 testing, 2 validation
         :param sample_rate:
         """
-        self.path_to_data = os.path.join(data_dir, 'AMASS') + '/'
+        self.path_to_data = os.path.join(data_dir, "AMASS") + "/"
         self.split = split
         self.in_n = input_n
         self.out_n = output_n
@@ -28,21 +36,32 @@ class AMASS(Dataset):
         self.p3d = []
         self.keys = []
         self.data_idx = []
-        self.joint_used = np.arange(4, 22)  # start from 4 for 17 joints, removing the non moving ones
+        self.joint_used = np.arange(
+            4, 22
+        )  # start from 4 for 17 joints, removing the non moving ones
         seq_len = self.in_n + self.out_n
 
         if all_data:
             amass_splits = [
-                ['CMU', 'MPI_Limits', 'TotalCapture', 'Eyes_Japan_Dataset', 'KIT', 'EKUT', 'TCD_handMocap', 'ACCAD'],
+                [
+                    "CMU",
+                    "MPI_Limits",
+                    "TotalCapture",
+                    "Eyes_Japan_Dataset",
+                    "KIT",
+                    "EKUT",
+                    "TCD_handMocap",
+                    "ACCAD",
+                ],
                 # ['HumanEva', 'MPI_HDM05', 'SFU', 'MPI_mosh'],
-                ['SFU'],
-                ['BioMotionLab_NTroje'],
+                ["SFU"],
+                ["BioMotionLab_NTroje"],
             ]
         else:
             amass_splits = [
-                ['MPI_Limits', 'TotalCapture', 'EKUT'],
-                ['SFU'],
-                ['BioMotionLab_NTroje'],
+                ["MPI_Limits", "TotalCapture", "EKUT"],
+                ["SFU"],
+                ["BioMotionLab_NTroje"],
             ]
         # amass_splits = [['BioMotionLab_NTroje'], ['HumanEva'], ['SSM_synced']]
         # amass_splits = [['HumanEva'], ['HumanEva'], ['HumanEva']]
@@ -68,33 +87,33 @@ class AMASS(Dataset):
         # np.savez_compressed('smpl_skeleton.npz', p3d0=p3d0, parents=parents)
 
         # load mean skeleton
-        skel = np.load('./body_models/smpl_skeleton.npz')
-        p3d0 = torch.from_numpy(skel['p3d0']).float().cuda()
-        parents = skel['parents']
+        skel = np.load("./body_models/smpl_skeleton.npz")
+        p3d0 = torch.from_numpy(skel["p3d0"]).float().cuda()
+        parents = skel["parents"]
         parent = {}
         for i in range(len(parents)):
             parent[i] = parents[i]
         n = 0
         for ds in amass_splits[split]:
             if not os.path.isdir(self.path_to_data + ds):
-                print(f'{ds} not found!')
+                print(f"{ds} not found!")
                 continue
-            print('>>> loading {}'.format(ds))
+            print(">>> loading {}".format(ds))
             for sub in os.listdir(self.path_to_data + ds):
-                if not os.path.isdir(self.path_to_data + ds + '/' + sub):
+                if not os.path.isdir(self.path_to_data + ds + "/" + sub):
                     continue
-                for act in os.listdir(self.path_to_data + ds + '/' + sub):
-                    if not act.endswith('.npz'):
+                for act in os.listdir(self.path_to_data + ds + "/" + sub):
+                    if not act.endswith(".npz"):
                         continue
                     # if not ('walk' in act or 'jog' in act or 'run' in act or 'treadmill' in act):
                     #     continue
-                    pose_all = np.load(self.path_to_data + ds + '/' + sub + '/' + act)
+                    pose_all = np.load(self.path_to_data + ds + "/" + sub + "/" + act)
                     try:
-                        poses = pose_all['poses']
+                        poses = pose_all["poses"]
                     except:
-                        print('no poses at {}/{}/{}'.format(ds, sub, act))
+                        print("no poses at {}/{}/{}".format(ds, sub, act))
                         continue
-                    frame_rate = pose_all['mocap_framerate']
+                    frame_rate = pose_all["mocap_framerate"]
                     # gender = pose_all['gender']
                     # dmpls = pose_all['dmpls']
                     # betas = pose_all['betas']
@@ -137,21 +156,29 @@ class AMASS(Dataset):
         pose = self.p3d[key][fs]
 
         mask = np.zeros((pose.shape[0], pose.shape[1]))
-        mask[0:self.in_n, :] = 1
-        mask[self.in_n:self.in_n + self.out_n, :] = 0
+        mask[0 : self.in_n, :] = 1
+        mask[self.in_n : self.in_n + self.out_n, :] = 0
 
         data = {
             "pose": pose,
             "mask": mask,
-            "timepoints": np.arange(self.in_n + self.out_n)
+            "timepoints": np.arange(self.in_n + self.out_n),
         }
 
         return data
 
 
 class D3DPW(Dataset):
-
-    def __init__(self, data_dir, input_n, output_n, skip_rate, split=0, miss_rate=0.2, all_data=False):
+    def __init__(
+        self,
+        data_dir,
+        input_n,
+        output_n,
+        skip_rate,
+        split=0,
+        miss_rate=0.2,
+        all_data=False,
+    ):
         """
         :param path_to_data:
         :param actions:
@@ -161,12 +188,12 @@ class D3DPW(Dataset):
         :param split: 0 train, 1 testing, 2 validation
         :param sample_rate:
         """
-        self.path_to_data = os.path.join(data_dir, '3DPW/sequenceFiles')
+        self.path_to_data = os.path.join(data_dir, "3DPW/sequenceFiles")
         self.split = split
         self.in_n = input_n
         self.out_n = output_n
         self.miss_rate = miss_rate
-        #self.sample_rate = opt.sample_rate
+        # self.sample_rate = opt.sample_rate
         self.p3d = []
         self.params = []
         self.keys = []
@@ -175,13 +202,13 @@ class D3DPW(Dataset):
         seq_len = self.in_n + self.out_n
 
         if split == 0:
-            data_path = self.path_to_data + '/train/'
+            data_path = self.path_to_data + "/train/"
         elif split == 2:
-            data_path = self.path_to_data + '/test/'
+            data_path = self.path_to_data + "/test/"
         elif split == 1:
-            data_path = self.path_to_data + '/validation/'
+            data_path = self.path_to_data + "/validation/"
         files = []
-        for (dirpath, dirnames, filenames) in walk(data_path):
+        for dirpath, dirnames, filenames in walk(data_path):
             files.extend(filenames)
 
         # from human_body_prior.body_model.body_model import BodyModel
@@ -200,9 +227,9 @@ class D3DPW(Dataset):
         # p3d0 = lbs.vertices2joints(bm.J_regressor, v_shaped)  # [1,52,3]
         # p3d0 = (p3d0 - p3d0[:, 0:1, :]).float().cuda()[:, :22]
         # parents = bm.kintree_table.data.numpy()[0, :]
-        skel = np.load('./body_models/smpl_skeleton.npz')
-        p3d0 = torch.from_numpy(skel['p3d0']).float().cuda()[:, :22]
-        parents = skel['parents']
+        skel = np.load("./body_models/smpl_skeleton.npz")
+        p3d0 = torch.from_numpy(skel["p3d0"]).float().cuda()[:, :22]
+        parents = skel["parents"]
         parent = {}
         for i in range(len(parents)):
             if i > 21:
@@ -213,10 +240,10 @@ class D3DPW(Dataset):
         sample_rate = int(60 // 25)
 
         for f in files:
-            with open(data_path + f, 'rb') as f:
-                print('>>> loading {}'.format(f))
-                data = pkl.load(f, encoding='latin1')
-                joint_pos = data['poses_60Hz']
+            with open(data_path + f, "rb") as f:
+                print(">>> loading {}".format(f))
+                data = pkl.load(f, encoding="latin1")
+                joint_pos = data["poses_60Hz"]
                 for i in range(len(joint_pos)):
                     poses = joint_pos[i]
                     fn = poses.shape[0]
@@ -264,13 +291,13 @@ class D3DPW(Dataset):
         pose = self.p3d[key][fs]
 
         mask = np.zeros((pose.shape[0], pose.shape[1]))
-        mask[0:self.in_n, :] = 1
-        mask[self.in_n:self.in_n + self.out_n, :] = 0
+        mask[0 : self.in_n, :] = 1
+        mask[self.in_n : self.in_n + self.out_n, :] = 0
 
         data = {
             "pose": pose,
             "mask": mask,
-            "timepoints": np.arange(self.in_n + self.out_n)
+            "timepoints": np.arange(self.in_n + self.out_n),
         }
 
         return data
